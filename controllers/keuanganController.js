@@ -147,11 +147,11 @@ exports.tambahPengeluaran = async (req, res) => {
     const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
     await db.query(
-      `INSERT INTO keuangan
-      (tanggal, waktu, jenis, keterangan, jumlah, ditambahkan_oleh)
-      VALUES (?, ?, 'pengeluaran', ?, ?, 'owner')`,
-      [tanggal, waktu, keterangan, jumlah]
-    );
+  `INSERT INTO keuangan
+  (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
+  VALUES (?, ?, 'pengeluaran', 'owner', ?, ?, 'owner')`,
+  [tanggal, waktu, keterangan, jumlah]
+);
 
     try {
       const token = req.headers.authorization?.split(' ')[1];
