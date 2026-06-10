@@ -22,7 +22,7 @@ exports.tambahPemasukan = async (req, res) => {
     await db.query(`
       INSERT INTO keuangan
       (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
-      VALUES (?, ?, 'pemasukan', 'manual', ?, ?, 'owner')
+      VALUES (?, ?, 'pemasukan', 'owner', ?, ?, ?)
     `, [tanggal, waktu, keterangan, jumlah]);
 
     // log activity if token present
