@@ -40,8 +40,8 @@ exports.create = async (req, res) => {
   try {
     // insert directly into consolidated `keuangan` table as pengeluaran by kasir
     const [result] = await db.query(
-      `INSERT INTO keuangan (tanggal, waktu, jenis, keterangan, jumlah, ditambahkan_oleh)
-       VALUES (?, ?, 'pengeluaran', ?, ?, 'kasir')`,
+      `INSERT INTO keuangan (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
+       VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir')`,
       [tanggal, waktu, keterangan, jumlah]
     );
 

@@ -86,6 +86,7 @@ async function initAll() {
 ====================== */
 app.use("/api/owner", ownerRoutes);
 app.use("/api/keuangan", keuanganRoutes);
+app.use("/api/pengeluaran", require("./routes/pengeluaran"));
 app.use("/transaksi", require("./routes/transaksi"));
 app.use("/menu", require("./routes/menu"));
 
