@@ -2,6 +2,7 @@ const db = require("../config/db");
 const jwt = require('jsonwebtoken');
 const logActivity = require('../utils/logActivity');
 
+
 async function ensureVarianLevelColumns() {
   try {
     const [vRows] = await db.query(
@@ -39,6 +40,10 @@ async function ensureSelesaiColumn() {
 }
 
 exports.tambahTransaksi = async (req, res) => {
+  console.log("BODY:", req.body);
+
+  const items = JSON.parse(req.body.items || "[]");
+  console.log("ITEMS:", items);
   try {
     console.log('=== TRANSAKSI REQUEST ===');
     console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
