@@ -284,26 +284,68 @@ exports.getGrafikBulanan = async (req, res) => {
 
     const [year, month] = bulan.split("-").map(Number);
 
-    // 🔥 AMBIL DARI JENIS SAJA (NO RELASI ID)
-    const [rows] = await db.query(
-      `
-      SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as tanggal, IFNULL(SUM(jumlah),0) as total
-      FROM keuangan
-      WHERE jenis = 'pemasukan' AND DATE_FORMAT(tanggal, '%Y-%m') = '2026-01'
-      AND (transaksi_id IS NULL OR transaksi_id = 0)
-      GROUP BY DATE(tanggal), DATE_FORMAT(tanggal, '%Y-%m-%d')
-      `,
+    // Pemasukan per hari
+    const [pemasukanRows] = await db.query(
+      `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(jumlah),0) as pemasukan
+       FROM keuangan
+       WHERE jenis = 'pemasukan' AND DATE_FORMAT(tanggal, '%Y-%m') = ?
+       AND (transaksi_id IS NULL OR transaksi_id = 0)
+       GROUP BY DATE(tanggal), DATE_FORMAT(tanggal, '%Y-%m-%d')`,
+      [bulan]
+    );
+
+    // Pemasukan dari transaksi kasir per hari
+    const [transaksiRows] = await db.query(
+      `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(total),0) as pemasukan
+       FROM transaksi
+       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
+       GROUP BY DATE(tanggal), DATE_FORMAT(tanggal, '%Y-%m-%d')`,
+      [bulan]
+    );
+
+    // Pengeluaran per hari
+    const [pengeluaranRows] = await db.query(
+      `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(jumlah),0) as pengeluaran
+       FROM keuangan
+       WHERE jenis = 'pengeluaran' AND DATE_FORMAT(tanggal, '%Y-%m') = ?
+       AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
+       GROUP BY DATE(tanggal), DATE_FORMAT(tanggal, '%Y-%m-%d')`,
+      [bulan]
+    );
+
+    // Pengeluaran kasir per hari
+    const [pengeluaranKasirRows] = await db.query(
+      `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(jumlah),0) as pengeluaran
+       FROM pengeluaran
+       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
+       GROUP BY DATE(tanggal), DATE_FORMAT(tanggal, '%Y-%m-%d')`,
       [bulan]
     );
 
     const map = new Map();
 
-    rows.forEach(r => {
-      map.set(r.date, {
-        date: r.date,
-        pemasukan: Number(r.pemasukan) || 0,
-        pengeluaran: Number(r.pengeluaran) || 0
-      });
+    pemasukanRows.forEach(r => {
+      const entry = map.get(r.date) || { date: r.date, pemasukan: 0, pengeluaran: 0 };
+      entry.pemasukan += Number(r.pemasukan);
+      map.set(r.date, entry);
+    });
+
+    transaksiRows.forEach(r => {
+      const entry = map.get(r.date) || { date: r.date, pemasukan: 0, pengeluaran: 0 };
+      entry.pemasukan += Number(r.pemasukan);
+      map.set(r.date, entry);
+    });
+
+    pengeluaranRows.forEach(r => {
+      const entry = map.get(r.date) || { date: r.date, pemasukan: 0, pengeluaran: 0 };
+      entry.pengeluaran += Number(r.pengeluaran);
+      map.set(r.date, entry);
+    });
+
+    pengeluaranKasirRows.forEach(r => {
+      const entry = map.get(r.date) || { date: r.date, pemasukan: 0, pengeluaran: 0 };
+      entry.pengeluaran += Number(r.pengeluaran);
+      map.set(r.date, entry);
     });
 
     const days = new Date(year, month, 0).getDate();
@@ -312,21 +354,13 @@ exports.getGrafikBulanan = async (req, res) => {
     for (let i = 1; i <= days; i++) {
       const d = String(i).padStart(2, "0");
       const date = `${bulan}-${d}`;
-
-      result.push(map.get(date) || {
-        date,
-        pemasukan: 0,
-        pengeluaran: 0
-      });
+      result.push(map.get(date) || { date, pemasukan: 0, pengeluaran: 0 });
     }
 
     res.json({ bulan, data: result });
 
   } catch (err) {
     console.error("GRAFIK ERROR:", err);
-    res.status(500).json({
-      message: "Gagal grafik",
-      error: err.message
-    });
+    res.status(500).json({ message: "Gagal grafik", error: err.message });
   }
 };
