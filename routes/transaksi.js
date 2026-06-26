@@ -14,6 +14,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Endpoint ini dipakai saat kasir menekan tombol bayar.
+// Frontend mengirim data pesanan ke sini, lalu backend menyimpannya ke tabel transaksi dan transaksi_detail.
+// Dengan endpoint ini, sistem memisahkan tampilan kasir dengan proses penyimpanan data.
 router.post(
   "/",
   upload.single("bukti_qris"),

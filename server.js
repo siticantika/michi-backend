@@ -14,6 +14,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Bagian ini adalah pusat route utama backend.
+// Semua endpoint penting untuk owner, keuangan, admin, pengeluaran, dan transaksi diatur dari sini.
+// Route di sini hanya mengarahkan permintaan ke file routing yang sesuai.
+// Misalnya request owner akan diarahkan ke folder routes/owner, sedangkan transaksi ke routes/transaksi.
+// Struktur backend dipisah berdasarkan fungsi agar lebih rapi dan mudah dirawat.
 app.use("/api/owner", ownerRoutes);
 app.use("/api/keuangan", keuanganRoutes);
 app.use("/api/admin", adminRoutes);
@@ -101,12 +106,17 @@ app.get("/tes-menu", async (req, res) => {
 /* ======================
   LOGIN
 ====================== */
+// Bagian ini menangani proses login pengguna.
+// Setelah login berhasil, server membuat token dan mengirim data user ke frontend.
+// Bagian ini adalah pusat login sistem.
+// Frontend mengirim username dan password ke endpoint ini, lalu backend memeriksa data user di tabel users.
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password)
     return res.status(400).json({ message: "Field wajib" });
 
+  // Backend mencari akun berdasarkan username di tabel users.
   const [users] = await db.query(
     "SELECT * FROM users WHERE username = ?",
     [username]
@@ -115,10 +125,13 @@ app.post("/api/login", async (req, res) => {
   if (users.length === 0)
     return res.status(401).json({ message: "User tidak ditemukan" });
 
+  // Password yang dimasukkan dibandingkan dengan password yang sudah di-hash di database.
   const valid = await bcrypt.compare(password, users[0].password);
   if (!valid)
     return res.status(401).json({ message: "Password salah" });
 
+  // Jika login berhasil, backend membuat token yang berisi id, role, dan username user.
+  // Token ini nantinya dikirim ke frontend dan disimpan di browser untuk dipakai saat mengakses halaman yang butuh login.
   const token = jwt.sign(
     { 
       id: users[0].id, 
@@ -139,7 +152,8 @@ app.post("/api/login", async (req, res) => {
     // ignore
   }
 
-  // Log activity: login -> set status online
+  // Log activity: login -> set status online.
+  // Sistem mencatat user_id, role, dan nama dari token JWT ke tabel activity_log agar admin tahu siapa yang login.
   try {
     const user = users[0];
     try {

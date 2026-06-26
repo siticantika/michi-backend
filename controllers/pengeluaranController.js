@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const logActivity = require('../utils/logActivity');
 
 // GET semua pengeluaran
+// Endpoint ini mengambil catatan pengeluaran hari ini dari tabel keuangan.
+// Data ini dipakai oleh halaman owner untuk melihat pengeluaran yang terjadi.
 exports.getAll = async (req, res) => {
   try {
     // return today's pengeluaran created by kasir from consolidated keuangan table
@@ -10,6 +12,8 @@ exports.getAll = async (req, res) => {
     const pad = (n) => n.toString().padStart(2, '0');
     const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
+    // Bagian ini mengambil data pengeluaran kasir hari ini dari tabel keuangan.
+    // Data ini kemudian ditampilkan ke halaman pengeluaran agar owner dan kasir bisa melihatnya.
     const [rows] = await db.query(
       `SELECT id, tanggal, waktu, keterangan, jumlah
        FROM keuangan
@@ -25,6 +29,8 @@ exports.getAll = async (req, res) => {
 };
 
 // POST tambah pengeluaran
+// Saat owner menambah pengeluaran, data disimpan ke tabel keuangan.
+// Karena data ini juga dipakai untuk laporan dan dashboard, penyimpanan harus konsisten.
 exports.create = async (req, res) => {
   const { keterangan, jumlah } = req.body;
 
@@ -38,7 +44,8 @@ exports.create = async (req, res) => {
   const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   try {
-    // insert directly into consolidated `keuangan` table as pengeluaran by kasir
+    // Bagian ini menyimpan pengeluaran kasir ke tabel keuangan.
+    // Ini penting karena data pengeluaran ikut dipakai untuk perhitungan laporan dan dashboard.
     const [result] = await db.query(
       `INSERT INTO keuangan (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
        VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir')`,
@@ -65,6 +72,8 @@ exports.create = async (req, res) => {
 };
 
 // PUT update pengeluaran
+// Fungsi ini memperbarui data pengeluaran yang sudah tersimpan sebelumnya.
+// Ini membantu owner jika ingin mengoreksi keterangan atau nominal yang salah.
 exports.update = async (req, res) => {
   const id = req.params.id;
   const { tanggal, waktu, keterangan, jumlah } = req.body;

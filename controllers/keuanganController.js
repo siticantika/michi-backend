@@ -19,6 +19,9 @@ exports.tambahPemasukan = async (req, res) => {
     const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
+    // Bagian ini menyimpan pemasukan manual owner ke tabel keuangan.
+    // Data ini dipakai untuk laporan dan dashboard owner.
+    // Informasi siapa yang menambahkan data tidak dihubungkan langsung ke users lewat foreign key, tetapi dicatat lewat log aktivitas.
     await db.query(`
       INSERT INTO keuangan
       (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
@@ -146,6 +149,8 @@ exports.tambahPengeluaran = async (req, res) => {
     const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
+    // Bagian ini menyimpan pengeluaran owner ke tabel keuangan.
+    // Nilai ditambahkan_oleh membantu sistem membedakan siapa yang menambahkan data.
     await db.query(
   `INSERT INTO keuangan
   (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)

@@ -39,9 +39,13 @@ async function ensureSelesaiColumn() {
   }
 }
 
+// Fungsi ini menerima checkout dari frontend dan menyimpan data ke database.
+// Prosesnya meliputi pembuatan header transaksi, detail item, dan pencatatan pemasukan keuangan.
 exports.tambahTransaksi = async (req, res) => {
   console.log("BODY:", req.body);
 
+  // Data pesanan dari frontend dikirim dalam bentuk array item.
+  // Bagian ini mengubah data tersebut menjadi array agar bisa diproses satu per satu.
   const items = JSON.parse(req.body.items || "[]");
   console.log("ITEMS:", items);
   try {
@@ -54,9 +58,12 @@ exports.tambahTransaksi = async (req, res) => {
       return res.status(400).json({ message: "Data transaksi tidak lengkap" });
     }
 
-    // Pastikan kolom varian/level ada sebelum menyimpan detail
+    // Pastikan kolom varian/level ada sebelum menyimpan detail.
+    // Ini penting supaya sistem tidak error saat ada menu dengan varian atau level.
     await ensureVarianLevelColumns();
 
+    // Bagian ini membuat header transaksi utama.
+    // Header ini ibarat kepala nota yang berisi metode pembayaran, total, dan kasir.
     const [trx] = await db.query(
       "INSERT INTO transaksi (metode, total, kasir_id) VALUES (?, ?, ?)",
       [metode, total, kasir_id]
@@ -73,6 +80,11 @@ exports.tambahTransaksi = async (req, res) => {
       );
     }
 
+    // Bagian ini menyimpan detail tiap item pesanan ke tabel transaksi_detail.
+    // Transaksi adalah ringkasan utama, sedangkan transaksi_detail adalah daftar barang yang dibeli.
+    // Dengan pola ini, histori tetap utuh bahkan jika data menu berubah di masa depan.
+    // Subtotal per item dihitung dari harga dikali jumlah.
+    // Data ini penting untuk menampilkan isi transaksi di riwayat pesanan dan menjaga histori tetap aman.
     for (const item of items) {
       await db.query(
         `INSERT INTO transaksi_detail
@@ -91,6 +103,9 @@ exports.tambahTransaksi = async (req, res) => {
       );
     }
 
+    // Bagian ini mencatat pemasukan transaksi ke tabel keuangan agar owner bisa melihat laporan keuangan.
+    // Transaksi kasir akan muncul di laporan owner lewat kolom transaksi_id yang menghubungkan kedua data ini.
+    // Jadi satu transaksi kasir sekaligus memengaruhi laporan keuangan.
     await db.query(
       `INSERT INTO keuangan
       (tanggal, waktu, jenis, sumber, jumlah, ditambahkan_oleh, transaksi_id)
@@ -98,7 +113,8 @@ exports.tambahTransaksi = async (req, res) => {
       [metode, total, transaksiId]
     );
 
-    // Tambahkan log aktivitas langsung ke tabel activity_log setelah INSERT transaksi
+    // Tambahkan log aktivitas langsung ke tabel activity_log setelah INSERT transaksi.
+    // Informasi user diambil dari token JWT, lalu dicatat sebagai siapa yang melakukan transaksi.
     try {
       const authHeader = req.headers.authorization || req.headers.Authorization;
       const tkn = authHeader?.split(' ')[1];
@@ -135,6 +151,9 @@ exports.getTransaksiHariIni = async (req, res) => {
     await ensureVarianLevelColumns();
     await ensureSelesaiColumn();
 
+    // Bagian ini mengambil riwayat transaksi hari ini dan menggabungkan data dari beberapa tabel.
+    // Data dari tabel transaksi, transaksi_detail, users, dan menu digabung agar tampilan riwayat lebih lengkap.
+    // Query ini bekerja seperti penghubung antar tabel agar tampilan riwayat bisa menampilkan nama kasir dan daftar item.
     const [rows] = await db.query(`
       SELECT 
         t.id,

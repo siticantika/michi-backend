@@ -5,6 +5,8 @@ const pengeluaranController = require("../controllers/pengeluaranController");
 const { verifyToken, verifyOwner } = require("../middleware/auth");
 
 
+// Route ini mengatur akses ke data pemasukan dan pengeluaran owner.
+// Hanya owner yang boleh melihat dan mengubah data finansial ini karena ada middleware verifikasi role.
 router.get("/pemasukan",verifyToken, verifyOwner,keuanganController.getPemasukanHariIni);
 router.post("/pemasukan",verifyToken, verifyOwner,keuanganController.tambahPemasukan);
 router.delete("/:id",verifyToken, verifyOwner,keuanganController.hapusPemasukan);

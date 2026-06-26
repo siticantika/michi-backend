@@ -9,7 +9,8 @@ require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-// Middleware to verify admin JWT
+// Middleware ini berfungsi untuk memastikan hanya admin yang bisa mengakses fitur admin.
+// Jika token tidak ada atau role bukan admin, sistem langsung menolak akses.
 const verifyAdmin = (req, res, next) => {
   const auth = req.headers.authorization;
   const token = auth && auth.split(' ')[1];
@@ -41,6 +42,7 @@ async function ensureNamaColumn() {
 }
 
 // 1) POST /api/admin/login -> check admins table
+// Endpoint login admin ini memeriksa data admin di tabel admins, bukan di tabel users.
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ message: 'Field wajib' });

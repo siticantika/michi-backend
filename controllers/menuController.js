@@ -18,7 +18,10 @@ const tambahMenu = async (req, res) => {
       });
     }
 
-    // Buat tabel menu jika belum ada
+    // Bagian ini bertugas menambahkan data menu baru ke database.
+    // Data menu ini nantinya ditampilkan di halaman kasir dan dipakai untuk transaksi pelanggan.
+    // Data menu ini nantinya ditampilkan di halaman kasir untuk dipilih pelanggan.
+    // Menu yang baru ditambahkan bisa langsung dipakai untuk transaksi berikutnya.
     const createTableQuery = `CREATE TABLE IF NOT EXISTS menu (
       id INT AUTO_INCREMENT PRIMARY KEY,
       nama VARCHAR(255) NOT NULL,
@@ -85,6 +88,10 @@ const updateMenu = async (req, res) => {
     if (!id) {
       return res.status(400).json({ message: "ID menu diperlukan" });
     }
+    // Bagian ini mengubah data menu yang sudah ada.
+    // Perubahan ini akan memengaruhi tampilan menu di kasir, tetapi riwayat transaksi lama tetap dipertahankan.
+    // Ini penting agar menu yang tampil di sistem tetap sesuai dengan data terbaru.
+    // Perlu diingat, data transaksi lama tidak ikut berubah karena riwayat penjualan sudah disimpan di transaksi_detail.
     const query = `
       UPDATE menu 
       SET nama = ?, icon = ?, harga = ?, kategori = ?, deskripsi = ?, varian = ?, level = ?
@@ -136,6 +143,9 @@ const deleteMenu = async (req, res) => {
     if (!id) {
       return res.status(400).json({ message: "ID menu diperlukan" });
     }
+    // Saat menu dihapus, data transaksi lama tetap aman karena detail transaksi sudah tersimpan sebelumnya.
+    // Ini penting supaya laporan penjualan tetap konsisten dan tidak rusak karena perubahan data master.
+    // Sistem tidak mengubah riwayat lama, sehingga laporan penjualan tetap konsisten.
     const query = `DELETE FROM menu WHERE id = ?`;
     const [result] = await db.query(query, [id]);
     if (result.affectedRows === 0) {

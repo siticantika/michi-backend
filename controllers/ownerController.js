@@ -13,6 +13,7 @@ exports.getDashboardOwner = async (req, res) => {
     `);
 
     // total transaksi (penjualan) hari ini from transaksi table
+    // Data ini diambil dari tabel transaksi karena transaksi kasir merupakan sumber pemasukan utama sistem.
     const [[transaksiSalesToday]] = await db.query(`
       SELECT IFNULL(SUM(total),0) total
       FROM transaksi
@@ -35,9 +36,13 @@ exports.getDashboardOwner = async (req, res) => {
       WHERE tanggal = CURDATE()
     `);
 
+    // Bagian ini adalah logika utama untuk menghitung laba rugi harian.
+    // Sistem mengambil data pemasukan dan pengeluaran dari beberapa sumber lalu menghitung selisihnya.
+    // Total pengeluaran adalah hasil penjumlahan pengeluaran manual owner dan pengeluaran dari kasir.
     const totalPengeluaran = Number(pengeluaranKeuangan.total) + Number(pengeluaranKasir.total);
 
-    // include transaksi sales into pemasukan for dashboard
+    // Bagian ini adalah logika utama untuk menghitung pemasukan harian.
+    // Pemasukan berasal dari catatan manual owner ditambah penjualan transaksi kasir.
     const totalPemasukanWithSales = Number(pemasukan.total) + Number(transaksiSalesToday.total);
 
 
@@ -59,7 +64,8 @@ exports.getDashboardOwner = async (req, res) => {
     `);
 
     // transaksi sales (kasir) today from transaksi table
-    // Representasikan setiap transaksi sales sebagai pemasukan dengan sumber = metode (cash/qris)
+    // Setiap transaksi penjualan diperlakukan sebagai pemasukan dengan sumber metode pembayaran.
+    // Ini memudahkan owner melihat bahwa penjualan kasir masuk dalam laporan keuangan.
     const [transaksiSalesList] = await db.query(`
       SELECT 
         TIME(tanggal) as waktu,
@@ -87,7 +93,8 @@ exports.getDashboardOwner = async (req, res) => {
       ORDER BY waktu DESC
     `);
 
-    // gabungkan transaksi: keuangan owner entries, pengeluaran kasir, and transaksi sales
+    // Gabungkan transaksi dari berbagai sumber: catatan manual owner, pengeluaran kasir, dan penjualan kasir.
+    // Tujuannya agar halaman dashboard owner menampilkan satu ringkasan yang terintegrasi.
     const transaksi = [...transaksiKeuangan, ...pengeluaranKasirList, ...transaksiSalesList]
       .sort((a, b) => b.waktu.localeCompare(a.waktu));
 
@@ -253,6 +260,9 @@ exports.getLaporanBulanan = async (req, res) => {
       return tb - ta;
     });
 
+    // Bagian ini adalah logika laporan bulanan.
+    // Data akan difilter berdasarkan bulan yang dipilih, lalu ditampilkan dalam bentuk ringkasan dan detail transaksi.
+    // Sistem memfilter data berdasarkan bulan yang dipilih, lalu menjumlahkan pemasukan dan pengeluaran.
     const totalPemasukan = (Number(pemasukan[0].total) || 0) + (Number(transaksiSales[0].total) || 0);
     const totalPengeluaran = (Number(pengeluaranKeuangan[0].total) || 0) + (Number(pengeluaranKasir[0].total) || 0);
 
@@ -284,7 +294,8 @@ exports.getGrafikBulanan = async (req, res) => {
 
     const [year, month] = bulan.split("-").map(Number);
 
-    // Pemasukan per hari
+    // Bagian ini menghitung pemasukan per hari dari tabel keuangan dan tabel transaksi.
+    // Data ini dipakai untuk grafik agar owner bisa melihat tren keuangan bulanan.
     const [pemasukanRows] = await db.query(
       `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(jumlah),0) as pemasukan
        FROM keuangan
@@ -303,7 +314,8 @@ exports.getGrafikBulanan = async (req, res) => {
       [bulan]
     );
 
-    // Pengeluaran per hari
+    // Bagian ini menghitung pengeluaran per hari dari tabel keuangan dan tabel pengeluaran.
+    // Nilai ini kemudian digabung dengan data pemasukan untuk membuat grafik bulanan.
     const [pengeluaranRows] = await db.query(
       `SELECT DATE_FORMAT(tanggal, '%Y-%m-%d') as date, IFNULL(SUM(jumlah),0) as pengeluaran
        FROM keuangan
