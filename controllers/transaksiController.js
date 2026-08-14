@@ -51,10 +51,10 @@ exports.tambahTransaksi = async (req, res) => {
   try {
     console.log('=== TRANSAKSI REQUEST ===');
     console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
-    const { metode, total, kasir_id } = req.body;
+    const { metode, total, kasir_id, jenis_harga } = req.body;
     const items = JSON.parse(req.body.items || "[]");
 
-    if (!metode || !total || !kasir_id || items.length === 0) {
+    if (!metode || !total || !kasir_id || !jenis_harga || items.length === 0) {
       return res.status(400).json({ message: "Data transaksi tidak lengkap" });
     }
 
@@ -64,9 +64,8 @@ exports.tambahTransaksi = async (req, res) => {
 
     // Bagian ini membuat header transaksi utama.
     // Header ini ibarat kepala nota yang berisi metode pembayaran, total, dan kasir.
-    const [trx] = await db.query(
-      "INSERT INTO transaksi (metode, total, kasir_id) VALUES (?, ?, ?)",
-      [metode, total, kasir_id]
+    const [trx] = await db.query( `INSERT INTO transaksi (metode, total, kasir_id, jenis_harga) VALUES (?, ?, ?, ?)`,
+    [metode, total, kasir_id, jenis_harga]
     );
 
     const transaksiId = trx.insertId;
@@ -147,7 +146,15 @@ exports.tambahTransaksi = async (req, res) => {
 
 exports.getTransaksiHariIni = async (req, res) => {
   try {
-    // Pastikan kolom ada sebelum SELECT
+    const { jenis_harga } = req.query;
+    let whereClause = "WHERE DATE(t.tanggal)=CURDATE()";
+    const params = [];
+
+    if (jenis_harga && jenis_harga !== "semua") {
+      whereClause += " AND t.jenis_harga = ?";
+      params.push(jenis_harga);
+    }
+
     await ensureVarianLevelColumns();
     await ensureSelesaiColumn();
 
@@ -155,33 +162,54 @@ exports.getTransaksiHariIni = async (req, res) => {
     // Data dari tabel transaksi, transaksi_detail, users, dan menu digabung agar tampilan riwayat lebih lengkap.
     // Query ini bekerja seperti penghubung antar tabel agar tampilan riwayat bisa menampilkan nama kasir dan daftar item.
     const [rows] = await db.query(`
-      SELECT 
-        t.id,
-        COALESCE(t.selesai,0) AS selesai,
-        t.tanggal,
-        t.metode,
-        t.total,
-        t.bukti_qris,
-        u.username AS kasir,
+    SELECT
+    t.id,
+    COALESCE(t.selesai,0) AS selesai,
+    t.tanggal,
+    t.metode,
+    t.total,
+    t.jenis_harga,
+    t.bukti_qris,
+    u.username AS kasir,
 
-        GROUP_CONCAT(
-          CONCAT(
-            td.nama_menu, '|', td.jumlah, '|', td.harga, '|', COALESCE(m.icon, ''), '|', COALESCE(td.varian, ''), '|', COALESCE(td.level, '')
-          )
-          SEPARATOR ';;'
-        ) AS items,
+    GROUP_CONCAT(
+      CONCAT(
+        td.nama_menu,'|',
+        td.jumlah,'|',
+        td.harga,'|',
+        COALESCE(m.icon,''),'|',
+        COALESCE(td.varian,''),'|',
+        COALESCE(td.level,'')
+      )
+      SEPARATOR ';;'
+    ) AS items,
 
-        SUM(td.jumlah) AS total_jumlah
+    SUM(td.jumlah) AS total_jumlah
 
-      FROM transaksi t
-      LEFT JOIN users u ON t.kasir_id = u.id
-      LEFT JOIN transaksi_detail td ON t.id = td.transaksi_id
-      LEFT JOIN menu m ON td.menu_id = m.id
-      WHERE DATE(t.tanggal) = CURDATE()
-      GROUP BY t.id
-      ORDER BY t.tanggal DESC
-    `);
+FROM transaksi t
+LEFT JOIN users u
+ON t.kasir_id=u.id
 
+LEFT JOIN transaksi_detail td
+ON t.id=td.transaksi_id
+
+LEFT JOIN menu m
+ON td.menu_id=m.id
+
+${whereClause}
+
+GROUP BY
+t.id,
+t.selesai,
+t.tanggal,
+t.metode,
+t.total,
+t.jenis_harga,
+t.bukti_qris,
+u.username
+
+ORDER BY t.tanggal DESC
+`, params);
     const result = rows.map(row => ({
       ...row,
       items: row.items
@@ -211,14 +239,26 @@ exports.getTransaksiHariIni = async (req, res) => {
 exports.setTransaksiSelesai = async (req, res) => {
   try {
     const id = req.params.id;
-    const { selesai } = req.body;
-    if (typeof selesai === 'undefined') return res.status(400).json({ message: 'Missing selesai value' });
+    const payload = req.body || {};
+    let { selesai } = payload;
 
     await ensureSelesaiColumn();
 
-    const [result] = await db.query('UPDATE transaksi SET selesai = ? WHERE id = ?', [selesai ? 1 : 0, id]);
+    if (typeof selesai === 'undefined') {
+      const [rows] = await db.query('SELECT selesai FROM transaksi WHERE id = ?', [id]);
+      if (rows.length === 0) return res.status(404).json({ message: 'Transaksi tidak ditemukan' });
+      selesai = Number(rows[0].selesai) === 1 ? 0 : 1;
+    } else {
+      const normalized =
+        typeof selesai === 'string'
+          ? ['1', 'true', 'yes', 'on'].includes(selesai.toLowerCase())
+          : Boolean(selesai);
+      selesai = normalized ? 1 : 0;
+    }
+
+    const [result] = await db.query('UPDATE transaksi SET selesai = ? WHERE id = ?', [selesai, id]);
     if (result.affectedRows === 0) return res.status(404).json({ message: 'Transaksi tidak ditemukan' });
-    return res.json({ message: 'OK', id, selesai: selesai ? 1 : 0 });
+    return res.json({ message: 'OK', id, selesai });
   } catch (err) {
     console.error('ERROR setTransaksiSelesai:', err);
     return res.status(500).json({ message: 'Gagal update transaksi' });

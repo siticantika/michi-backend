@@ -6,11 +6,12 @@ const tambahMenu = async (req, res) => {
   try {
     console.log('=== MENU REQUEST ===');
     console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
-    const { nama, icon, harga, kategori, deskripsi, varian, level } = req.body;
+    const { nama, icon, harga_outlet, harga_grab, kategori, deskripsi, varian, level } = req.body;
     if (
       nama === undefined ||
       icon === undefined ||
-      harga === undefined ||
+      harga_outlet === undefined ||
+      harga_grab === undefined ||
       kategori === undefined
     ) {
       return res.status(400).json({
@@ -26,7 +27,8 @@ const tambahMenu = async (req, res) => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       nama VARCHAR(255) NOT NULL,
       icon VARCHAR(255),
-      harga VARCHAR(50) NOT NULL,
+      harga_outlet VARCHAR(50) NOT NULL,
+      harga_grab VARCHAR(50) NOT NULL,
       kategori VARCHAR(100) NOT NULL,
       deskripsi TEXT,
       varian TEXT,
@@ -36,15 +38,16 @@ const tambahMenu = async (req, res) => {
 
     const query = `
       INSERT INTO menu 
-      (nama, icon, harga, kategori, deskripsi, varian, level)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (nama, icon, harga_outlet, harga_grab, kategori, deskripsi, varian, level)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await db.query(
       query,
       [
         nama,
         icon,
-        harga,
+        harga_outlet,
+        harga_grab,
         kategori,
         deskripsi || null,
         varian || null,
@@ -84,7 +87,7 @@ const updateMenu = async (req, res) => {
     console.log('=== MENU REQUEST ===');
     console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
     const { id } = req.params;
-    const { nama, icon, harga, kategori, deskripsi, varian, level } = req.body;
+    const { nama, icon, harga_outlet, harga_grab, kategori, deskripsi, varian, level } = req.body;
     if (!id) {
       return res.status(400).json({ message: "ID menu diperlukan" });
     }
@@ -94,13 +97,14 @@ const updateMenu = async (req, res) => {
     // Perlu diingat, data transaksi lama tidak ikut berubah karena riwayat penjualan sudah disimpan di transaksi_detail.
     const query = `
       UPDATE menu 
-      SET nama = ?, icon = ?, harga = ?, kategori = ?, deskripsi = ?, varian = ?, level = ?
+      SET nama = ?, icon = ?, harga_outlet = ?, harga_grab = ?, kategori = ?, deskripsi = ?, varian = ?, level = ?
       WHERE id = ?
     `;
     const [result] = await db.query(query, [
       nama,
       icon,
-      harga,
+      harga_outlet,
+      harga_grab,
       kategori,
       deskripsi || null,
       varian || null,

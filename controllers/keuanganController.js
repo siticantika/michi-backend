@@ -20,12 +20,11 @@ exports.tambahPemasukan = async (req, res) => {
     const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
     // Bagian ini menyimpan pemasukan manual owner ke tabel keuangan.
-    // Data ini dipakai untuk laporan dan dashboard owner.
-    // Informasi siapa yang menambahkan data tidak dihubungkan langsung ke users lewat foreign key, tetapi dicatat lewat log aktivitas.
+    // Untuk jenis pemasukan, kategori_pengeluaran harus disimpan sebagai NULL.
     await db.query(`
       INSERT INTO keuangan
-      (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
-      VALUES (?, ?, 'pemasukan', 'owner', ?, ?, "owner")`, 
+      (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh, kategori_pengeluaran)
+      VALUES (?, ?, 'pemasukan', 'owner', ?, ?, "owner", NULL)`, 
       [tanggal, waktu, keterangan, jumlah]);
 
     // log activity if token present
@@ -112,6 +111,7 @@ exports.getPengeluaranHariIni = async (req, res) => {
         id,
         tanggal,
         waktu,
+        kategori_pengeluaran,
         keterangan,
         jumlah,
         ditambahkan_oleh
@@ -137,7 +137,7 @@ exports.getPengeluaranHariIni = async (req, res) => {
 // ==========================
 exports.tambahPengeluaran = async (req, res) => {
   try {
-    const { keterangan, jumlah } = req.body;
+    const { keterangan, jumlah, kategori_pengeluaran } = req.body;
 
     if (!keterangan || !jumlah) {
       return res.status(400).json({ message: "Data tidak lengkap" });
@@ -152,11 +152,11 @@ exports.tambahPengeluaran = async (req, res) => {
     // Bagian ini menyimpan pengeluaran owner ke tabel keuangan.
     // Nilai ditambahkan_oleh membantu sistem membedakan siapa yang menambahkan data.
     await db.query(
-  `INSERT INTO keuangan
-  (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
-  VALUES (?, ?, 'pengeluaran', 'owner', ?, ?, 'owner')`,
-  [tanggal, waktu, keterangan, jumlah]
-);
+      `INSERT INTO keuangan
+      (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh, kategori_pengeluaran)
+      VALUES (?, ?, 'pengeluaran', 'owner', ?, ?, 'owner', ?)`,
+      [tanggal, waktu, keterangan, jumlah, kategori_pengeluaran || null]
+    );
 
     try {
       const token = req.headers.authorization?.split(' ')[1];

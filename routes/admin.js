@@ -121,7 +121,7 @@ router.delete('/users/:id', verifyAdmin, async (req, res) => {
 // 5) GET /api/admin/activity-log -> latest 100 ordered by waktu desc
 router.get('/activity-log', verifyAdmin, async (req, res) => {
   try {
-    const { tanggal } = req.query;
+    const { tanggal, aksi } = req.query;
     let query, params;
     // NOTE: aplikasi menggunakan waktu lokal MySQL (WITA).
     // Jika Anda perlu mengatur timezone pada server MySQL, jalankan di phpMyAdmin:
@@ -129,25 +129,47 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     // SET time_zone = '+08:00';
 
     if (tanggal) {
-      query = `
-        SELECT * FROM activity_log 
-        WHERE DATE(waktu) = ?
-        ORDER BY waktu DESC 
-        LIMIT 100
-      `;
-      params = [tanggal];
+      if (aksi) {
+        query = `
+          SELECT * FROM activity_log 
+          WHERE DATE(waktu) = ?
+            AND LOWER(aksi) LIKE ?
+          ORDER BY waktu DESC 
+          LIMIT 100
+        `;
+        params = [tanggal, `%${String(aksi).toLowerCase()}%`];
+      } else {
+        query = `
+          SELECT * FROM activity_log 
+          WHERE DATE(waktu) = ?
+          ORDER BY waktu DESC 
+          LIMIT 100
+        `;
+        params = [tanggal];
+      }
     } else {
-      query = `
-        SELECT * FROM activity_log 
-        WHERE DATE(waktu) = CURDATE()
-        ORDER BY waktu DESC 
-        LIMIT 100
-      `;
-      params = [];
+      if (aksi) {
+        query = `
+          SELECT * FROM activity_log 
+          WHERE DATE(waktu) = CURDATE()
+            AND LOWER(aksi) LIKE ?
+          ORDER BY waktu DESC 
+          LIMIT 100
+        `;
+        params = [`%${String(aksi).toLowerCase()}%`];
+      } else {
+        query = `
+          SELECT * FROM activity_log 
+          WHERE DATE(waktu) = CURDATE()
+          ORDER BY waktu DESC 
+          LIMIT 100
+        `;
+        params = [];
+      }
     }
     
     const [logs] = await db.query(query, params);
-    console.log('Activity log query result:', logs.length, 'rows for tanggal:', tanggal || 'today');
+    console.log('Activity log query result:', logs.length, 'rows for tanggal:', tanggal || 'today', 'aksi:', aksi || 'all');
     res.json(logs);
   } catch (err) {
     console.error('Get activity log error:', err);

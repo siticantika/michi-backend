@@ -53,6 +53,7 @@ exports.getDashboardOwner = async (req, res) => {
         waktu,
         jenis,
         sumber,
+        kategori_pengeluaran,
         keterangan,
         jumlah,
         ditambahkan_oleh
@@ -71,6 +72,7 @@ exports.getDashboardOwner = async (req, res) => {
         TIME(tanggal) as waktu,
         'pemasukan' as jenis,
         metode as sumber,
+        NULL as kategori_pengeluaran,
         CONCAT('Transaksi #', id) as keterangan,
         total as jumlah,
         'kasir' as ditambahkan_oleh
@@ -85,6 +87,7 @@ exports.getDashboardOwner = async (req, res) => {
         waktu,
         'pengeluaran' as jenis,
         'kasir' as sumber,
+        NULL as kategori_pengeluaran,
         keterangan,
         jumlah,
         'kasir' as ditambahkan_oleh
@@ -167,7 +170,8 @@ exports.getLaporanBulanan = async (req, res) => {
         sumber,
         keterangan,
         jumlah,
-        ditambahkan_oleh
+        ditambahkan_oleh,
+        kategori_pengeluaran
        FROM keuangan
        WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
        AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
@@ -186,7 +190,8 @@ exports.getLaporanBulanan = async (req, res) => {
         'kasir' as sumber,
         keterangan,
         jumlah,
-        'kasir' as ditambahkan_oleh
+        'kasir' as ditambahkan_oleh,
+        NULL as kategori_pengeluaran
        FROM pengeluaran
        WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
        ORDER BY tanggal DESC, waktu DESC`,
@@ -205,7 +210,8 @@ exports.getLaporanBulanan = async (req, res) => {
         sumber,
         keterangan,
         jumlah,
-        ditambahkan_oleh
+        ditambahkan_oleh,
+        kategori_pengeluaran
        FROM keuangan
        WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
        AND ditambahkan_oleh = 'kasir'
@@ -223,7 +229,8 @@ exports.getLaporanBulanan = async (req, res) => {
         metode as sumber,
         CONCAT('Transaksi #', id) as keterangan,
         total as jumlah,
-        'kasir' as ditambahkan_oleh
+        'kasir' as ditambahkan_oleh,
+        NULL as kategori_pengeluaran
        FROM transaksi
        WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
        ORDER BY tanggal DESC, waktu DESC`,
@@ -248,7 +255,7 @@ exports.getLaporanBulanan = async (req, res) => {
       }
       // use minute-granularity to collapse near-duplicate rows that differ only by seconds
       const minuteKey = Math.floor(tsNum / 60);
-      const key = `${minuteKey}||${item.jenis||''}||${item.jumlah||0}||${(item.ditambahkan_oleh||'').toString().trim()}`;
+      const key = `${minuteKey}||${item.jenis||''}||${item.jumlah||0}||${(item.ditambahkan_oleh||'').toString().trim()}||${(item.keterangan||'').toString().trim()}||${(item.kategori_pengeluaran||'').toString().trim()}`;
       if (!seen.has(key)) {
         seen.add(key);
         transaksi.push(item);
@@ -374,5 +381,152 @@ exports.getGrafikBulanan = async (req, res) => {
   } catch (err) {
     console.error("GRAFIK ERROR:", err);
     res.status(500).json({ message: "Gagal grafik", error: err.message });
+  }
+};
+
+// New: pengeluaran grouped by kategori for a given month
+exports.getPengeluaranByKategori = async (req, res) => {
+  try {
+    const { bulan } = req.query; // 'YYYY-MM'
+    if (!bulan) return res.status(400).json({ message: 'Parameter bulan wajib' });
+
+    // Collect pengeluaran from keuangan (owner entries) and pengeluaran (kasir)
+    const [rows] = await db.query(
+      `SELECT kategori, SUM(total) as total FROM (
+         SELECT IFNULL(kategori_pengeluaran, 'Lainnya') as kategori, jumlah as total
+         FROM keuangan
+         WHERE jenis = 'pengeluaran'
+         AND DATE_FORMAT(tanggal, '%Y-%m') = ?
+         AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
+         UNION ALL
+         SELECT 'Pengeluaran Kasir' as kategori, jumlah as total
+         FROM pengeluaran
+         WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
+      ) t
+      GROUP BY kategori
+      ORDER BY total DESC`,
+      [bulan, bulan]
+    );
+
+    // Ensure totals are numbers
+    const data = (rows || []).map(r => ({ kategori: r.kategori, total: Number(r.total) }));
+    res.json({ bulan, data });
+  } catch (err) {
+    console.error('ERROR getPengeluaranByKategori:', err);
+    res.status(500).json({ message: 'Gagal mengambil data pengeluaran per kategori' });
+  }
+};
+
+exports.getMenuSalesHariIni = async (req, res) => {
+  try {
+    const filter = (req.query.filter || 'Semua').toString().trim();
+    const filterKey = filter.toLowerCase();
+    let filterClause = '';
+    const params = [];
+
+    if (filterKey !== 'semua') {
+      filterClause = 'AND LOWER(t.jenis_harga) = ?';
+      params.push(filterKey);
+    }
+
+    const [rows] = await db.query(
+      `SELECT td.nama_menu AS menu,
+              COALESCE(m.icon, '') AS icon,
+              SUM(td.jumlah) AS quantity
+       FROM transaksi_detail td
+       JOIN transaksi t ON td.transaksi_id = t.id
+       LEFT JOIN menu m ON td.menu_id = m.id
+       WHERE DATE(t.tanggal) = CURDATE()
+       ${filterClause}
+       GROUP BY td.nama_menu, m.icon
+       ORDER BY quantity DESC
+       LIMIT 5`,
+      params
+    );
+
+    const [optionRows] = await db.query(
+      `SELECT DISTINCT jenis_harga
+       FROM transaksi
+       WHERE DATE(tanggal) = CURDATE()
+       ORDER BY jenis_harga ASC`
+    );
+
+    const options = ['Semua', ...(optionRows || []).map(row => row.jenis_harga).filter(Boolean)];
+
+    const data = (rows || []).map(r => ({
+      menu: r.menu || 'Unknown',
+      icon: r.icon || '',
+      quantity: Number(r.quantity || 0),
+    }));
+
+    res.json({
+      filter: filterKey === 'semua' ? 'Semua' : filter,
+      options,
+      data,
+    });
+  } catch (err) {
+    console.error('ERROR getMenuSalesHariIni:', err);
+    res.status(500).json({ message: 'Gagal mengambil statistik penjualan menu hari ini' });
+  }
+};
+
+exports.getMenuSalesBulanan = async (req, res) => {
+  try {
+    const bulan = (req.query.bulan || '').toString().trim();
+    const filter = (req.query.filter || 'Semua').toString().trim();
+    const filterKey = filter.toLowerCase();
+
+    if (!bulan || !/^\d{4}-\d{2}$/.test(bulan)) {
+      return res.status(400).json({ message: 'Parameter bulan wajib dalam format YYYY-MM' });
+    }
+
+    let filterClause = '';
+    const params = [bulan];
+
+    if (filterKey !== 'semua') {
+      filterClause = 'AND LOWER(t.jenis_harga) = ?';
+      params.push(filterKey);
+    }
+
+    const [rows] = await db.query(
+      `SELECT td.nama_menu AS menu,
+              COALESCE(m.icon, '') AS icon,
+              SUM(td.jumlah) AS quantity
+       FROM transaksi_detail td
+       JOIN transaksi t ON td.transaksi_id = t.id
+       LEFT JOIN menu m ON td.menu_id = m.id
+       WHERE DATE_FORMAT(t.tanggal, '%Y-%m') = ?
+       ${filterClause}
+       GROUP BY td.nama_menu, m.icon
+       ORDER BY quantity DESC
+       LIMIT 5`,
+      params
+    );
+
+    const [optionRows] = await db.query(
+      `SELECT DISTINCT t.jenis_harga
+       FROM transaksi t
+       WHERE DATE_FORMAT(t.tanggal, '%Y-%m') = ?
+       ORDER BY t.jenis_harga ASC`,
+      [bulan]
+    );
+
+    const options = ['Semua', ...(optionRows || []).map(row => row.jenis_harga).filter(Boolean)];
+
+    const data = (rows || []).map(r => ({
+      menu: r.menu || 'Unknown',
+      icon: r.icon || '',
+      quantity: Number(r.quantity || 0),
+    }));
+
+    res.json({
+      bulan,
+      filter: filterKey === 'semua' ? 'Semua' : filter,
+      options,
+      data,
+    });
+  } catch (err) {
+    console.error('ERROR getMenuSalesBulanan:', err);
+    res.status(500).json({ message: 'Gagal mengambil statistik penjualan menu bulanan' });
   }
 };

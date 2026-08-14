@@ -78,9 +78,23 @@ async function initPemilikDefault() {
   }
 }
 
+async function ensureKeuanganKategoriColumn() {
+  try {
+    const [cols] = await db.query("SHOW COLUMNS FROM keuangan LIKE 'kategori_pengeluaran'");
+    if (cols.length === 0) {
+      await db.query("ALTER TABLE keuangan ADD COLUMN kategori_pengeluaran VARCHAR(50) NULL");
+      console.log('Added kategori_pengeluaran column to keuangan table');
+    }
+  } catch (err) {
+    console.error('Failed to ensure keuangan schema:', err);
+    throw err;
+  }
+}
+
 async function initAll() {
   await initKasirDefault();
   await initPemilikDefault();
+  await ensureKeuanganKategoriColumn();
 }
 
 /* ======================

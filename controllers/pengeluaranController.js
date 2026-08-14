@@ -15,7 +15,7 @@ exports.getAll = async (req, res) => {
     // Bagian ini mengambil data pengeluaran kasir hari ini dari tabel keuangan.
     // Data ini kemudian ditampilkan ke halaman pengeluaran agar owner dan kasir bisa melihatnya.
     const [rows] = await db.query(
-      `SELECT id, tanggal, waktu, keterangan, jumlah
+      `SELECT id, tanggal, waktu, kategori_pengeluaran, keterangan, jumlah
        FROM keuangan
        WHERE jenis = 'pengeluaran' AND ditambahkan_oleh = 'kasir' AND tanggal = ?
        ORDER BY waktu DESC`,
@@ -32,11 +32,14 @@ exports.getAll = async (req, res) => {
 // Saat owner menambah pengeluaran, data disimpan ke tabel keuangan.
 // Karena data ini juga dipakai untuk laporan dan dashboard, penyimpanan harus konsisten.
 exports.create = async (req, res) => {
-  const { keterangan, jumlah } = req.body;
+  const { keterangan, jumlah, kategori_pengeluaran } = req.body;
 
   if (!keterangan || !jumlah) {
     return res.status(400).json({ message: "Data belum lengkap" });
   }
+
+  const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
+
   // build local date/time to avoid DB timezone differences
   const now = new Date();
   const pad = (n) => n.toString().padStart(2, '0');
@@ -47,9 +50,9 @@ exports.create = async (req, res) => {
     // Bagian ini menyimpan pengeluaran kasir ke tabel keuangan.
     // Ini penting karena data pengeluaran ikut dipakai untuk perhitungan laporan dan dashboard.
     const [result] = await db.query(
-      `INSERT INTO keuangan (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh)
-       VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir')`,
-      [tanggal, waktu, keterangan, jumlah]
+      `INSERT INTO keuangan (tanggal, waktu, jenis, sumber, keterangan, jumlah, ditambahkan_oleh, kategori_pengeluaran)
+       VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir', ?)`,
+      [tanggal, waktu, keterangan, jumlah, normalizedKategori]
     );
 
     // log activity if token available
@@ -76,7 +79,7 @@ exports.create = async (req, res) => {
 // Ini membantu owner jika ingin mengoreksi keterangan atau nominal yang salah.
 exports.update = async (req, res) => {
   const id = req.params.id;
-  const { tanggal, waktu, keterangan, jumlah } = req.body;
+  const { tanggal, waktu, keterangan, jumlah, kategori_pengeluaran } = req.body;
 
   try {
     const fields = [];
@@ -97,6 +100,10 @@ exports.update = async (req, res) => {
     if (jumlah !== undefined) {
       fields.push('jumlah = ?');
       params.push(jumlah);
+    }
+    if (kategori_pengeluaran !== undefined) {
+      fields.push('kategori_pengeluaran = ?');
+      params.push(kategori_pengeluaran === '' ? null : kategori_pengeluaran);
     }
 
     if (fields.length === 0) {

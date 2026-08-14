@@ -8,5 +8,9 @@ const { verifyToken, verifyOwner } = require("../middleware/auth");
 router.get("/dashboard", verifyToken, verifyOwner, ownerController.getDashboardOwner);
 router.get("/laporan-bulanan", verifyToken, verifyOwner, ownerController.getLaporanBulanan);
 router.get("/grafik-bulanan", verifyToken, verifyOwner, ownerController.getGrafikBulanan);
+router.get("/grafik-pengeluaran-kategori", verifyToken, verifyOwner, ownerController.getPengeluaranByKategori);
+router.get("/grafik-penjualan-menu-hari-ini", verifyToken, verifyOwner, ownerController.getMenuSalesHariIni);
+router.get("/grafik-penjualan-menu-bulanan", verifyToken, verifyOwner, ownerController.getMenuSalesBulanan);
+router.get("/menu-sales-bulanan", verifyToken, verifyOwner, ownerController.getMenuSalesBulanan);
 
 module.exports = router;
