@@ -250,7 +250,7 @@ t.jenis_harga,
 t.bukti_qris,
 u.username
 
-ORDER BY t.tanggal DESC, t.waktu DESC
+ORDER BY t.tanggal DESC, t.id DESC
 `, params);
     const result = rows.map(row => ({
       ...row,
