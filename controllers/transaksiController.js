@@ -89,11 +89,11 @@ exports.tambahTransaksi = async (req, res) => {
     // Header ini ibarat kepala nota yang berisi metode pembayaran, total, dan kasir.
     // prefer client-provided waktu/tanggal when available
     const pad = (n) => n.toString().padStart(2, '0');
-    let tanggalVal = clientTanggal;
+    // Use server date to ensure transaksi appears in today's list (server CURDATE).
+    const now = new Date();
+    let tanggalVal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     let waktuVal = clientWaktu;
-    if (!tanggalVal || !/\d{4}-\d{2}-\d{2}/.test(tanggalVal) || !waktuVal || !/\d{2}:\d{2}(:\d{2})?/.test(waktuVal)) {
-      const now = new Date();
-      tanggalVal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    if (!waktuVal || !/\d{2}:\d{2}(:\d{2})?/.test(waktuVal)) {
       waktuVal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     } else {
       // normalize waktu to HH:MM:SS
