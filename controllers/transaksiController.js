@@ -39,6 +39,28 @@ async function ensureSelesaiColumn() {
   }
 }
 
+async function ensureTransaksiDateTimeColumns() {
+  try {
+    const [dateCol] = await db.query(
+      `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transaksi' AND COLUMN_NAME = ?`,
+      ['tanggal']
+    );
+    if (!dateCol || dateCol[0].cnt === 0) {
+      await db.query(`ALTER TABLE transaksi ADD COLUMN tanggal DATE`);
+    }
+
+    const [timeCol] = await db.query(
+      `SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transaksi' AND COLUMN_NAME = ?`,
+      ['waktu']
+    );
+    if (!timeCol || timeCol[0].cnt === 0) {
+      await db.query(`ALTER TABLE transaksi ADD COLUMN waktu TIME`);
+    }
+  } catch (err) {
+    console.warn('ensureTransaksiDateTimeColumns failed:', err && err.message ? err.message : err);
+  }
+}
+
 // Fungsi ini menerima checkout dari frontend dan menyimpan data ke database.
 // Prosesnya meliputi pembuatan header transaksi, detail item, dan pencatatan pemasukan keuangan.
 exports.tambahTransaksi = async (req, res) => {
@@ -61,6 +83,7 @@ exports.tambahTransaksi = async (req, res) => {
     // Pastikan kolom varian/level ada sebelum menyimpan detail.
     // Ini penting supaya sistem tidak error saat ada menu dengan varian atau level.
     await ensureVarianLevelColumns();
+    await ensureTransaksiDateTimeColumns();
 
     // Bagian ini membuat header transaksi utama.
     // Header ini ibarat kepala nota yang berisi metode pembayaran, total, dan kasir.
@@ -175,6 +198,7 @@ exports.getTransaksiHariIni = async (req, res) => {
 
     await ensureVarianLevelColumns();
     await ensureSelesaiColumn();
+    await ensureTransaksiDateTimeColumns();
 
     // Bagian ini mengambil riwayat transaksi hari ini dan menggabungkan data dari beberapa tabel.
     // Data dari tabel transaksi, transaksi_detail, users, dan menu digabung agar tampilan riwayat lebih lengkap.
