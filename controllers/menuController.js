@@ -35,7 +35,25 @@ const tambahMenu = async (req, res) => {
       level TEXT
     )`;
     await db.query(createTableQuery);
+    // Proses field `level` sebelum simpan ke DB
+    // - Jika frontend mengirim array (banyak level), ubah jadi JSON string
+    // - Jika objek, juga stringify
+    // - Batasi panjang untuk menghindari error DB
+    let processedLevel = null;
+    if (Array.isArray(level)) {
+      processedLevel = JSON.stringify(level);
+    } else if (level && typeof level === 'object') {
+      processedLevel = JSON.stringify(level);
+    } else if (typeof level === 'string') {
+      processedLevel = level;
+    } else {
+      processedLevel = null;
+    }
 
+    // Validasi panjang (contoh: maksimal 5000 karakter)
+    if (processedLevel && processedLevel.length > 5000) {
+      return res.status(400).json({ message: 'Field level terlalu panjang' });
+    }
     const query = `
       INSERT INTO menu 
       (nama, icon, harga_outlet, harga_grab, kategori, deskripsi, varian, level)
@@ -51,7 +69,7 @@ const tambahMenu = async (req, res) => {
         kategori,
         deskripsi || null,
         varian || null,
-        level || null,
+        processedLevel || null,
       ]
     );
     // attempt to log activity (non-blocking)
@@ -95,6 +113,22 @@ const updateMenu = async (req, res) => {
     // Perubahan ini akan memengaruhi tampilan menu di kasir, tetapi riwayat transaksi lama tetap dipertahankan.
     // Ini penting agar menu yang tampil di sistem tetap sesuai dengan data terbaru.
     // Perlu diingat, data transaksi lama tidak ikut berubah karena riwayat penjualan sudah disimpan di transaksi_detail.
+    // Proses field `level` sebelum update (sama seperti di tambahMenu)
+    let processedLevel = null;
+    if (Array.isArray(level)) {
+      processedLevel = JSON.stringify(level);
+    } else if (level && typeof level === 'object') {
+      processedLevel = JSON.stringify(level);
+    } else if (typeof level === 'string') {
+      processedLevel = level;
+    } else {
+      processedLevel = null;
+    }
+
+    if (processedLevel && processedLevel.length > 5000) {
+      return res.status(400).json({ message: 'Field level terlalu panjang' });
+    }
+
     const query = `
       UPDATE menu 
       SET nama = ?, icon = ?, harga_outlet = ?, harga_grab = ?, kategori = ?, deskripsi = ?, varian = ?, level = ?
@@ -108,7 +142,7 @@ const updateMenu = async (req, res) => {
       kategori,
       deskripsi || null,
       varian || null,
-      level || null,
+      processedLevel || null,
       id,
     ]);
     if (result.affectedRows === 0) {
