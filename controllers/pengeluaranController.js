@@ -40,25 +40,19 @@ exports.create = async (req, res) => {
 
   const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
 
-  // prefer client-provided waktu/tanggal when available to reflect input time
+  // Use server date (so entry appears in today's list according to server), but allow client time when valid
   const pad = (n) => n.toString().padStart(2, '0');
-  let tanggal;
+  const now = new Date();
+  const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   let waktu;
-  if (clientTanggal && typeof clientTanggal === 'string' && clientTanggal.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    tanggal = clientTanggal;
-  }
   if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-    // normalize to HH:MM:SS
     const parts = clientWaktu.split(':');
     const hh = pad(Number(parts[0] || 0));
     const mm = pad(Number(parts[1] || 0));
     const ss = pad(Number(parts[2] || 0));
     waktu = `${hh}:${mm}:${ss}`;
-  }
-  if (!tanggal || !waktu) {
-    const now = new Date();
-    if (!tanggal) tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    if (!waktu) waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  } else {
+    waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   }
 
   try {
