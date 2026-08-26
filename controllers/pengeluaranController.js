@@ -32,7 +32,7 @@ exports.getAll = async (req, res) => {
 // Saat owner menambah pengeluaran, data disimpan ke tabel keuangan.
 // Karena data ini juga dipakai untuk laporan dan dashboard, penyimpanan harus konsisten.
 exports.create = async (req, res) => {
-  const { keterangan, jumlah, kategori_pengeluaran } = req.body;
+  const { keterangan, jumlah, kategori_pengeluaran, waktu: clientWaktu, tanggal: clientTanggal } = req.body;
 
   if (!keterangan || !jumlah) {
     return res.status(400).json({ message: "Data belum lengkap" });
@@ -40,11 +40,26 @@ exports.create = async (req, res) => {
 
   const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
 
-  // build local date/time to avoid DB timezone differences
-  const now = new Date();
+  // prefer client-provided waktu/tanggal when available to reflect input time
   const pad = (n) => n.toString().padStart(2, '0');
-  const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  let tanggal;
+  let waktu;
+  if (clientTanggal && typeof clientTanggal === 'string' && clientTanggal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    tanggal = clientTanggal;
+  }
+  if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+    // normalize to HH:MM:SS
+    const parts = clientWaktu.split(':');
+    const hh = pad(Number(parts[0] || 0));
+    const mm = pad(Number(parts[1] || 0));
+    const ss = pad(Number(parts[2] || 0));
+    waktu = `${hh}:${mm}:${ss}`;
+  }
+  if (!tanggal || !waktu) {
+    const now = new Date();
+    if (!tanggal) tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    if (!waktu) waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  }
 
   try {
     // Bagian ini menyimpan pengeluaran kasir ke tabel keuangan.
