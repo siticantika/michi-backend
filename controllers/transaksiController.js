@@ -51,7 +51,7 @@ exports.tambahTransaksi = async (req, res) => {
   try {
     console.log('=== TRANSAKSI REQUEST ===');
     console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
-    const { metode, total, kasir_id, jenis_harga } = req.body;
+    const { metode, total, kasir_id, jenis_harga, waktu: clientWaktu, tanggal: clientTanggal } = req.body;
     const items = JSON.parse(req.body.items || "[]");
 
     if (!metode || !total || !kasir_id || !jenis_harga || items.length === 0) {
@@ -64,8 +64,26 @@ exports.tambahTransaksi = async (req, res) => {
 
     // Bagian ini membuat header transaksi utama.
     // Header ini ibarat kepala nota yang berisi metode pembayaran, total, dan kasir.
-    const [trx] = await db.query( `INSERT INTO transaksi (metode, total, kasir_id, jenis_harga) VALUES (?, ?, ?, ?)`,
-    [metode, total, kasir_id, jenis_harga]
+    // prefer client-provided waktu/tanggal when available
+    const pad = (n) => n.toString().padStart(2, '0');
+    let tanggalVal = clientTanggal;
+    let waktuVal = clientWaktu;
+    if (!tanggalVal || !/\d{4}-\d{2}-\d{2}/.test(tanggalVal) || !waktuVal || !/\d{2}:\d{2}(:\d{2})?/.test(waktuVal)) {
+      const now = new Date();
+      tanggalVal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      waktuVal = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    } else {
+      // normalize waktu to HH:MM:SS
+      const parts = waktuVal.split(':');
+      const hh = pad(Number(parts[0] || 0));
+      const mm = pad(Number(parts[1] || 0));
+      const ss = pad(Number(parts[2] || 0));
+      waktuVal = `${hh}:${mm}:${ss}`;
+    }
+
+    const [trx] = await db.query(
+      `INSERT INTO transaksi (metode, total, kasir_id, jenis_harga, tanggal, waktu) VALUES (?, ?, ?, ?, ?, ?)`,
+      [metode, total, kasir_id, jenis_harga, tanggalVal, waktuVal]
     );
 
     const transaksiId = trx.insertId;
@@ -108,8 +126,8 @@ exports.tambahTransaksi = async (req, res) => {
     await db.query(
       `INSERT INTO keuangan
       (tanggal, waktu, jenis, sumber, jumlah, ditambahkan_oleh, transaksi_id)
-      VALUES (CURDATE(), CURTIME(), 'pemasukan', ?, ?, 'kasir', ?)`,
-      [metode, total, transaksiId]
+      VALUES (?, ?, 'pemasukan', ?, ?, 'kasir', ?)`,
+      [tanggalVal, waktuVal, metode, total, transaksiId]
     );
 
     // Tambahkan log aktivitas langsung ke tabel activity_log setelah INSERT transaksi.
@@ -208,7 +226,7 @@ t.jenis_harga,
 t.bukti_qris,
 u.username
 
-ORDER BY t.tanggal DESC
+ORDER BY t.tanggal DESC, t.waktu DESC
 `, params);
     const result = rows.map(row => ({
       ...row,
