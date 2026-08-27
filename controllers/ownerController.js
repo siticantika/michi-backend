@@ -124,6 +124,23 @@ exports.getLaporanBulanan = async (req, res) => {
     if (!bulan) {
       return res.status(400).json({ message: "Parameter bulan wajib diisi" });
     }
+    const { start, end } = req.query; // start/end: 'YYYY-MM-DD'
+    
+    let dateFrom;
+    let dateTo;
+    
+    if (start && end) {
+      dateFrom = start;
+      dateTo = end;
+    } else if (bulan) {
+      const [y, m] = bulan.split('-');
+      if (!y || !m) return res.status(400).json({ message: 'Invalid bulan format' });
+      const lastDay = new Date(Number(y), Number(m), 0).getDate();
+      dateFrom = `${bulan}-01`;
+      dateTo = `${bulan}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      return res.status(400).json({ message: "Parameter bulan atau start+end wajib diisi" });
+    }
 
     // 1️⃣ TOTAL PEMASUKAN BULANAN (keuangan owner + transaksi sales)
     // Hanya hitung pemasukan manual di keuangan (exclude rows yang berasal dari transaksi)
@@ -131,16 +148,16 @@ exports.getLaporanBulanan = async (req, res) => {
       `SELECT SUM(jumlah) AS total
        FROM keuangan
        WHERE jenis = 'pemasukan'
-       AND DATE_FORMAT(tanggal, '%Y-%m') = ?
+       AND DATE(tanggal) BETWEEN ? AND ?
        AND (transaksi_id IS NULL OR transaksi_id = 0)`,
-      [bulan]
+      [dateFrom, dateTo]
     );
 
     const [transaksiSales] = await db.query(
       `SELECT IFNULL(SUM(total),0) AS total
        FROM transaksi
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?`,
-      [bulan]
+       WHERE DATE(tanggal) BETWEEN ? AND ?`,
+      [dateFrom, dateTo]
     );
 
     // 2️⃣ TOTAL PENGELUARAN BULANAN (keuangan owner + pengeluaran kasir)
@@ -148,16 +165,16 @@ exports.getLaporanBulanan = async (req, res) => {
       `SELECT SUM(jumlah) AS total
        FROM keuangan
        WHERE jenis = 'pengeluaran'
-       AND DATE_FORMAT(tanggal, '%Y-%m') = ?
-       AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)`,
-      [bulan]
+      AND DATE(tanggal) BETWEEN ? AND ?
+      AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)`,
+      [dateFrom, dateTo]
     );
 
     const [pengeluaranKasir] = await db.query(
       `SELECT SUM(jumlah) AS total
        FROM pengeluaran
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?`,
-      [bulan]
+      WHERE DATE(tanggal) BETWEEN ? AND ?`,
+      [dateFrom, dateTo]
     );
 
     // 3️⃣ DETAIL TRANSAKSI BULANAN from keuangan (owner), pengeluaran (kasir), and transaksi (sales)
@@ -173,11 +190,11 @@ exports.getLaporanBulanan = async (req, res) => {
         ditambahkan_oleh,
         kategori_pengeluaran
        FROM keuangan
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
-       AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
-       AND (transaksi_id IS NULL OR transaksi_id = 0)
-       ORDER BY tanggal DESC, waktu DESC`,
-      [bulan]
+      WHERE DATE(tanggal) BETWEEN ? AND ?
+      AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
+      AND (transaksi_id IS NULL OR transaksi_id = 0)
+      ORDER BY tanggal DESC, waktu DESC`,
+      [dateFrom, dateTo]
     );
 
     // pengeluaran kasir bulanan
@@ -193,9 +210,9 @@ exports.getLaporanBulanan = async (req, res) => {
         'kasir' as ditambahkan_oleh,
         NULL as kategori_pengeluaran
        FROM pengeluaran
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
-       ORDER BY tanggal DESC, waktu DESC`,
-      [bulan]
+      WHERE DATE(tanggal) BETWEEN ? AND ?
+      ORDER BY tanggal DESC, waktu DESC`,
+      [dateFrom, dateTo]
     );
 
     // Also include kasir-created rows that were inserted directly into `keuangan`.
@@ -213,10 +230,10 @@ exports.getLaporanBulanan = async (req, res) => {
         ditambahkan_oleh,
         kategori_pengeluaran
        FROM keuangan
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
-       AND ditambahkan_oleh = 'kasir'
-       ORDER BY tanggal DESC, waktu DESC`,
-      [bulan]
+      WHERE DATE(tanggal) BETWEEN ? AND ?
+      AND ditambahkan_oleh = 'kasir'
+      ORDER BY tanggal DESC, waktu DESC`,
+      [dateFrom, dateTo]
     );
 
     // transaksi sales bulanan
@@ -232,9 +249,9 @@ exports.getLaporanBulanan = async (req, res) => {
         'kasir' as ditambahkan_oleh,
         NULL as kategori_pengeluaran
        FROM transaksi
-       WHERE DATE_FORMAT(tanggal, '%Y-%m') = ?
-       ORDER BY tanggal DESC, waktu DESC`,
-      [bulan]
+      WHERE DATE(tanggal) BETWEEN ? AND ?
+      ORDER BY tanggal DESC, waktu DESC`,
+      [dateFrom, dateTo]
     );
 
     // Merge all sources and deduplicate entries that may appear in multiple tables
