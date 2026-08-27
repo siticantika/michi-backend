@@ -208,10 +208,11 @@ exports.getTransaksiHariIni = async (req, res) => {
     t.id,
     COALESCE(t.selesai,0) AS selesai,
     t.tanggal,
+    t.waktu,
     t.metode,
     t.total,
     t.jenis_harga,
-    t.bukti_qris,
+      t.bukti_qris,
     u.username AS kasir,
 
     GROUP_CONCAT(
@@ -244,6 +245,7 @@ GROUP BY
 t.id,
 t.selesai,
 t.tanggal,
+t.waktu,
 t.metode,
 t.total,
 t.jenis_harga,
