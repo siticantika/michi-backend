@@ -69,7 +69,7 @@ exports.getDashboardOwner = async (req, res) => {
     // Ini memudahkan owner melihat bahwa penjualan kasir masuk dalam laporan keuangan.
     const [transaksiSalesList] = await db.query(`
       SELECT 
-        TIME(tanggal) as waktu,
+        COALESCE(waktu, TIME(tanggal)) as waktu,
         'pemasukan' as jenis,
         metode as sumber,
         NULL as kategori_pengeluaran,
@@ -223,8 +223,8 @@ exports.getLaporanBulanan = async (req, res) => {
     const [transaksiSalesList] = await db.query(
       `SELECT
         DATE_FORMAT(tanggal, '%Y-%m-%d') as tanggal,
-        TIME(tanggal) as waktu,
-        UNIX_TIMESTAMP(tanggal) as ts,
+        COALESCE(waktu, TIME(tanggal)) as waktu,
+        UNIX_TIMESTAMP(CONCAT(tanggal, ' ', COALESCE(waktu, '00:00:00'))) as ts,
         'pemasukan' as jenis,
         metode as sumber,
         CONCAT('Transaksi #', id) as keterangan,
