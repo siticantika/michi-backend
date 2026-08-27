@@ -119,16 +119,16 @@ exports.getDashboardOwner = async (req, res) => {
 // ===============================
 exports.getLaporanBulanan = async (req, res) => {
   try {
-    const { bulan } = req.query; // contoh: 2025-12
+    // Accept either a `bulan` (YYYY-MM) or explicit `start` and `end` (YYYY-MM-DD)
+    const { bulan, start, end } = req.query; // bulan: '2025-12', start/end: 'YYYY-MM-DD'
 
-    if (!bulan) {
-      return res.status(400).json({ message: "Parameter bulan wajib diisi" });
+    if (!bulan && !(start && end)) {
+      return res.status(400).json({ message: "Parameter bulan atau start+end wajib diisi" });
     }
-    const { start, end } = req.query; // start/end: 'YYYY-MM-DD'
-    
+
     let dateFrom;
     let dateTo;
-    
+
     if (start && end) {
       dateFrom = start;
       dateTo = end;
@@ -138,8 +138,6 @@ exports.getLaporanBulanan = async (req, res) => {
       const lastDay = new Date(Number(y), Number(m), 0).getDate();
       dateFrom = `${bulan}-01`;
       dateTo = `${bulan}-${String(lastDay).padStart(2, '0')}`;
-    } else {
-      return res.status(400).json({ message: "Parameter bulan atau start+end wajib diisi" });
     }
 
     // 1️⃣ TOTAL PEMASUKAN BULANAN (keuangan owner + transaksi sales)
