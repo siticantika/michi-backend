@@ -121,7 +121,8 @@ router.delete('/users/:id', verifyAdmin, async (req, res) => {
 // 5) GET /api/admin/activity-log -> latest 100 ordered by waktu desc
 router.get('/activity-log', verifyAdmin, async (req, res) => {
   try {
-    const { tanggal, aksi } = req.query;
+    console.log('GET /api/admin/activity-log called', { query: req.query, adminId: req.admin && req.admin.id });
+    let { tanggal, aksi } = req.query;
     let query, params;
     // NOTE: aplikasi menggunakan waktu lokal MySQL (WITA).
     // Jika Anda perlu mengatur timezone pada server MySQL, jalankan di phpMyAdmin:
@@ -129,6 +130,14 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     // SET time_zone = '+08:00';
 
     if (tanggal) {
+      try {
+        console.log('Normalizing tanggal input:', tanggal);
+        // normalize common client date formats to YYYY-MM-DD
+        // accept: YYYY-MM-DD, MM/DD/YYYY (from browser datepicker locales), or full Date strings
+      } catch (normErr) {
+        console.error('Error normalizing tanggal:', normErr && normErr.stack ? normErr.stack : normErr);
+        return res.status(400).json({ message: 'Invalid tanggal' });
+      }
       // normalize common client date formats to YYYY-MM-DD
       // accept: YYYY-MM-DD, MM/DD/YYYY (from browser datepicker locales), or full Date strings
       let normalized = tanggal;
@@ -207,7 +216,7 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     }
     res.json(logs);
   } catch (err) {
-    console.error('Get activity log error:', err);
+    console.error('Get activity log error:', err && err.stack ? err.stack : err);
     res.status(500).json({ message: 'Server error' });
   }
 });
