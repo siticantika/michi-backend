@@ -130,6 +130,20 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     // SET time_zone = '+08:00';
 
     if (tanggal) {
+      // if client provided tzOffset (minutes), convert stored `waktu` to client timezone
+      const tzOffsetParam = req.query.tzOffset;
+      let clientOffsetStr = null; // e.g. '+07:00' or '-05:30'
+      if (typeof tzOffsetParam !== 'undefined') {
+        const minutes = Number(tzOffsetParam);
+        if (!Number.isNaN(minutes)) {
+          const total = -minutes; // convert getTimezoneOffset() to offset-from-UTC (minutes)
+          const sign = total >= 0 ? '+' : '-';
+          const absMinutes = Math.abs(total);
+          const hh = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+          const mm = String(absMinutes % 60).padStart(2, '0');
+          clientOffsetStr = `${sign}${hh}:${mm}`;
+        }
+      }
       try {
         console.log('Normalizing tanggal input:', tanggal);
         // normalize common client date formats to YYYY-MM-DD
@@ -158,26 +172,48 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
       }
       tanggal = normalized;
       // use the normalized date string below
-      // use explicit datetime range for the selected local date to avoid UTC/offset issues
-      const startDatetime = `${tanggal} 00:00:00`;
-      const endDatetime = `${tanggal} 23:59:59`;
-      if (aksi) {
-        query = `
-          SELECT * FROM activity_log 
-          WHERE waktu BETWEEN ? AND ?
-            AND LOWER(aksi) LIKE ?
-          ORDER BY waktu DESC 
-          LIMIT 100
-        `;
-        params = [startDatetime, endDatetime, `%${String(aksi).toLowerCase()}%`];
+      // If we have clientOffsetStr, compare DATE(CONVERT_TZ(waktu, @@session.time_zone, clientOffsetStr)) = tanggal
+      if (clientOffsetStr) {
+        if (aksi) {
+          query = `
+            SELECT * FROM activity_log
+            WHERE DATE(CONVERT_TZ(waktu, @@session.time_zone, ?)) = ?
+              AND LOWER(aksi) LIKE ?
+            ORDER BY waktu DESC
+            LIMIT 100
+          `;
+          params = [clientOffsetStr, tanggal, `%${String(aksi).toLowerCase()}%`];
+        } else {
+          query = `
+            SELECT * FROM activity_log
+            WHERE DATE(CONVERT_TZ(waktu, @@session.time_zone, ?)) = ?
+            ORDER BY waktu DESC
+            LIMIT 100
+          `;
+          params = [clientOffsetStr, tanggal];
+        }
       } else {
-        query = `
-          SELECT * FROM activity_log 
-          WHERE waktu BETWEEN ? AND ?
-          ORDER BY waktu DESC 
-          LIMIT 100
-        `;
-        params = [startDatetime, endDatetime];
+        // fallback to server-side CURDATE range when tzOffset not provided
+        const startDatetime = `${tanggal} 00:00:00`;
+        const endDatetime = `${tanggal} 23:59:59`;
+        if (aksi) {
+          query = `
+            SELECT * FROM activity_log 
+            WHERE waktu BETWEEN ? AND ?
+              AND LOWER(aksi) LIKE ?
+            ORDER BY waktu DESC 
+            LIMIT 100
+          `;
+          params = [startDatetime, endDatetime, `%${String(aksi).toLowerCase()}%`];
+        } else {
+          query = `
+            SELECT * FROM activity_log 
+            WHERE waktu BETWEEN ? AND ?
+            ORDER BY waktu DESC 
+            LIMIT 100
+          `;
+          params = [startDatetime, endDatetime];
+        }
       }
     } else {
       // default: today's range on the DB server timezone
