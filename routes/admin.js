@@ -129,6 +129,26 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     // SET time_zone = '+08:00';
 
     if (tanggal) {
+      // normalize common client date formats to YYYY-MM-DD
+      // accept: YYYY-MM-DD, MM/DD/YYYY (from browser datepicker locales), or full Date strings
+      let normalized = tanggal;
+      // MM/DD/YYYY -> YYYY-MM-DD
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(tanggal)) {
+        const parts = tanggal.split('/');
+        // parts[0]=MM, parts[1]=DD, parts[2]=YYYY
+        const mm = parts[0].padStart(2, '0');
+        const dd = parts[1].padStart(2, '0');
+        const yyyy = parts[2];
+        normalized = `${yyyy}-${mm}-${dd}`;
+      } else {
+        // try Date parser fallback (handles some locale formats)
+        const parsed = new Date(tanggal);
+        if (!Number.isNaN(parsed.getTime())) {
+          normalized = parsed.toISOString().slice(0, 10);
+        }
+      }
+      tanggal = normalized;
+      // use the normalized date string below
       // use explicit datetime range for the selected local date to avoid UTC/offset issues
       const startDatetime = `${tanggal} 00:00:00`;
       const endDatetime = `${tanggal} 23:59:59`;
