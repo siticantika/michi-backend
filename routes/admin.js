@@ -194,8 +194,17 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
       }
     }
     
-    const [logs] = await db.query(query, params);
-    console.log('Activity log query result:', logs.length, 'rows for tanggal:', tanggal || 'today', 'aksi:', aksi || 'all');
+    console.log('Activity log query:', query.trim().replace(/\s+/g, ' '), 'params:', params);
+    let logs;
+    try {
+      const result = await db.query(query, params);
+      logs = result[0];
+      console.log('Activity log query result:', logs.length, 'rows for tanggal:', tanggal || 'today', 'aksi:', aksi || 'all');
+    } catch (dbErr) {
+      console.error('DB error executing activity-log query:', dbErr && dbErr.stack ? dbErr.stack : dbErr);
+      // Return empty array instead of 500 so frontend can continue to render gracefully
+      return res.json([]);
+    }
     res.json(logs);
   } catch (err) {
     console.error('Get activity log error:', err);
