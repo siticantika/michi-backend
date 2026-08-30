@@ -129,29 +129,35 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
     // SET time_zone = '+08:00';
 
     if (tanggal) {
+      // use explicit datetime range for the selected local date to avoid UTC/offset issues
+      const startDatetime = `${tanggal} 00:00:00`;
+      const endDatetime = `${tanggal} 23:59:59`;
       if (aksi) {
         query = `
           SELECT * FROM activity_log 
-          WHERE DATE(waktu) = ?
+          WHERE waktu BETWEEN ? AND ?
             AND LOWER(aksi) LIKE ?
           ORDER BY waktu DESC 
           LIMIT 100
         `;
-        params = [tanggal, `%${String(aksi).toLowerCase()}%`];
+        params = [startDatetime, endDatetime, `%${String(aksi).toLowerCase()}%`];
       } else {
         query = `
           SELECT * FROM activity_log 
-          WHERE DATE(waktu) = ?
+          WHERE waktu BETWEEN ? AND ?
           ORDER BY waktu DESC 
           LIMIT 100
         `;
-        params = [tanggal];
+        params = [startDatetime, endDatetime];
       }
     } else {
+      // default: today's range on the DB server timezone
+      const startToday = `CONCAT(CURDATE(), ' 00:00:00')`;
+      const endToday = `CONCAT(CURDATE(), ' 23:59:59')`;
       if (aksi) {
         query = `
           SELECT * FROM activity_log 
-          WHERE DATE(waktu) = CURDATE()
+          WHERE waktu BETWEEN ${startToday} AND ${endToday}
             AND LOWER(aksi) LIKE ?
           ORDER BY waktu DESC 
           LIMIT 100
@@ -160,7 +166,7 @@ router.get('/activity-log', verifyAdmin, async (req, res) => {
       } else {
         query = `
           SELECT * FROM activity_log 
-          WHERE DATE(waktu) = CURDATE()
+          WHERE waktu BETWEEN ${startToday} AND ${endToday}
           ORDER BY waktu DESC 
           LIMIT 100
         `;
