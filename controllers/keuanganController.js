@@ -57,13 +57,14 @@ exports.getPemasukanHariIni = async (req, res) => {
         sumber,
         keterangan,
         jumlah,
-        ditambahkan_oleh
+        ditambahkan_oleh,
+        UNIX_TIMESTAMP(CONCAT(tanggal, ' ', waktu)) AS ts
       FROM keuangan
       WHERE jenis = 'pemasukan'
       AND tanggal = DATE(NOW())
       -- Exclude entries that are linked to a transaksi (i.e. kasir checkout entries)
       AND transaksi_id IS NULL
-      ORDER BY waktu DESC
+      ORDER BY ts DESC
     `);
     res.json(rows);
   } catch (err) {
@@ -114,7 +115,8 @@ exports.getPengeluaranHariIni = async (req, res) => {
         kategori_pengeluaran,
         keterangan,
         jumlah,
-        ditambahkan_oleh
+        ditambahkan_oleh,
+        UNIX_TIMESTAMP(CONCAT(tanggal, ' ', waktu)) AS ts
       FROM keuangan
       WHERE jenis = 'pengeluaran'
       AND tanggal = CURDATE()
@@ -122,7 +124,7 @@ exports.getPengeluaranHariIni = async (req, res) => {
       AND ditambahkan_oleh = 'owner'
       -- Exclude entries that are linked to a transaksi (i.e. kasir checkout entries)
       AND transaksi_id IS NULL
-      ORDER BY waktu DESC
+      ORDER BY ts DESC
     `);
 
     res.json(rows);
