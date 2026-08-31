@@ -107,25 +107,22 @@ exports.hapusPemasukan = async (req, res) => {
 // ==========================
 exports.getPengeluaranHariIni = async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT 
-        id,
-        tanggal,
-        waktu,
-        kategori_pengeluaran,
-        keterangan,
-        jumlah,
-        ditambahkan_oleh,
-        UNIX_TIMESTAMP(CONCAT(tanggal, ' ', waktu)) AS ts
-      FROM keuangan
-      WHERE jenis = 'pengeluaran'
-      AND tanggal = CURDATE()
-      -- Only include owner-created pengeluaran on the owner pengeluaran page
-      AND ditambahkan_oleh = 'owner'
-      -- Exclude entries that are linked to a transaksi (i.e. kasir checkout entries)
-      AND transaksi_id IS NULL
-      ORDER BY ts DESC
-    `);
+        const [rows] = await db.query(`
+  SELECT 
+    id,
+    tanggal,
+    waktu,
+    kategori_pengeluaran,
+    keterangan,
+    jumlah,
+    ditambahkan_oleh
+  FROM keuangan
+  WHERE jenis = 'pengeluaran'
+    AND tanggal = CURDATE()
+    AND ditambahkan_oleh = 'owner'
+    AND transaksi_id IS NULL
+  ORDER BY tanggal DESC, waktu DESC
+`);
 
     res.json(rows);
   } catch (err) {
