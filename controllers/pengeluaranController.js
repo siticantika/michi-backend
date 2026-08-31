@@ -32,7 +32,7 @@ exports.getAll = async (req, res) => {
 // Saat owner menambah pengeluaran, data disimpan ke tabel keuangan.
 // Karena data ini juga dipakai untuk laporan dan dashboard, penyimpanan harus konsisten.
 exports.create = async (req, res) => {
-  const { keterangan, jumlah, kategori_pengeluaran, waktu: clientWaktu, tanggal: clientTanggal } = req.body;
+  const { keterangan, jumlah, kategori_pengeluaran } = req.body;
 
   if (!keterangan || !jumlah) {
     return res.status(400).json({ message: "Data belum lengkap" });
@@ -40,20 +40,11 @@ exports.create = async (req, res) => {
 
   const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
 
-  // Use server date (so entry appears in today's list according to server), but allow client time when valid
+  // Use server date and server time to ensure consistent stored time across clients/servers
   const pad = (n) => n.toString().padStart(2, '0');
   const now = new Date();
   const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  let waktu;
-  if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-    const parts = clientWaktu.split(':');
-    const hh = pad(Number(parts[0] || 0));
-    const mm = pad(Number(parts[1] || 0));
-    const ss = pad(Number(parts[2] || 0));
-    waktu = `${hh}:${mm}:${ss}`;
-  } else {
-    waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  }
+  const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   try {
     // Bagian ini menyimpan pengeluaran kasir ke tabel keuangan.
@@ -63,6 +54,7 @@ exports.create = async (req, res) => {
        VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir', ?)`,
       [tanggal, waktu, keterangan, jumlah, normalizedKategori]
     );
+    console.log('Inserted pengeluaran with waktu:', waktu, 'tanggal:', tanggal);
 
     // log activity if token available
     try {
