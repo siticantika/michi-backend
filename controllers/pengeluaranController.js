@@ -45,15 +45,22 @@ exports.create = async (req, res) => {
   const now = new Date();
   const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   let waktu;
-  if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-    const parts = clientWaktu.split(':');
-    const hh = pad(Number(parts[0] || 0));
-    const mm = pad(Number(parts[1] || 0));
-    const ss = pad(Number(parts[2] || 0));
-    waktu = `${hh}:${mm}:${ss}`;
-  } else {
-    waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  }
+
+if (
+  clientWaktu &&
+  typeof clientWaktu === "string" &&
+  /^\d{1,2}:\d{2}(:\d{2})?$/.test(clientWaktu)
+) {
+  const parts = clientWaktu.split(":");
+
+  const hh = pad(Number(parts[0]));
+  const mm = pad(Number(parts[1]));
+  const ss = pad(Number(parts[2] || 0));
+
+  waktu = `${hh}:${mm}:${ss}`;
+} else {
+  waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
 
   try {
     // Bagian ini menyimpan pengeluaran kasir ke tabel keuangan.
