@@ -56,12 +56,13 @@ exports.getDashboardOwner = async (req, res) => {
         kategori_pengeluaran,
         keterangan,
         jumlah,
-        ditambahkan_oleh
+        ditambahkan_oleh,
+        UNIX_TIMESTAMP(CONCAT(tanggal,' ',waktu)) AS ts
       FROM keuangan
       WHERE tanggal = CURDATE()
       AND (pengeluaran_id IS NULL OR pengeluaran_id = 0)
       AND (transaksi_id IS NULL OR transaksi_id = 0)
-      ORDER BY waktu DESC
+      ORDER BY ts DESC
     `);
 
     // transaksi sales (kasir) today from transaksi table
@@ -75,10 +76,11 @@ exports.getDashboardOwner = async (req, res) => {
         NULL as kategori_pengeluaran,
         CONCAT('Transaksi #', id) as keterangan,
         total as jumlah,
-        'kasir' as ditambahkan_oleh
+        'kasir' as ditambahkan_oleh,
+        UNIX_TIMESTAMP(CONCAT(DATE(tanggal), ' ', COALESCE(waktu, TIME(tanggal)))) AS ts
       FROM transaksi
       WHERE DATE(tanggal) = CURDATE()
-      ORDER BY waktu DESC
+      ORDER BY ts DESC
     `);
 
     // pengeluaran kasir hari ini
@@ -90,16 +92,21 @@ exports.getDashboardOwner = async (req, res) => {
         NULL as kategori_pengeluaran,
         keterangan,
         jumlah,
-        'kasir' as ditambahkan_oleh
+        'kasir' as ditambahkan_oleh,
+        UNIX_TIMESTAMP(CONCAT(tanggal, ' ', waktu)) AS ts
       FROM pengeluaran
       WHERE tanggal = CURDATE()
-      ORDER BY waktu DESC
+      ORDER BY ts DESC
     `);
 
     // Gabungkan transaksi dari berbagai sumber: catatan manual owner, pengeluaran kasir, dan penjualan kasir.
     // Tujuannya agar halaman dashboard owner menampilkan satu ringkasan yang terintegrasi.
     const transaksi = [...transaksiKeuangan, ...pengeluaranKasirList, ...transaksiSalesList]
-      .sort((a, b) => b.waktu.localeCompare(a.waktu));
+      .sort((a, b) => {
+        const ta = a.ts ? Number(a.ts) : 0;
+        const tb = b.ts ? Number(b.ts) : 0;
+        return tb - ta;
+      });
 
     res.json({
       pemasukan: totalPemasukanWithSales,
