@@ -66,14 +66,18 @@ async function ensureTransaksiDateTimeColumns() {
 exports.tambahTransaksi = async (req, res) => {
   console.log("BODY:", req.body);
 
-  // Data pesanan dari frontend dikirim dalam bentuk array item.
-  // Bagian ini mengubah data tersebut menjadi array agar bisa diproses satu per satu.
-  const items = JSON.parse(req.body.items || "[]");
-  console.log("ITEMS:", items);
   try {
     console.log('=== TRANSAKSI REQUEST ===');
-    console.log('Auth header:', req.headers.authorization ? 'ADA' : 'TIDAK ADA');
-    const { metode, total, kasir_id, jenis_harga, waktu: clientWaktu, tanggal: clientTanggal } = req.body;
+
+    const {
+      metode,
+      total,
+      kasir_id,
+      jenis_harga,
+      waktu: clientWaktu,
+      tanggal: clientTanggal
+    } = req.body;
+
     const items = JSON.parse(req.body.items || "[]");
 
     if (!metode || !total || !kasir_id || !jenis_harga || items.length === 0) {
@@ -188,60 +192,114 @@ exports.tambahTransaksi = async (req, res) => {
 exports.getTransaksiHariIni = async (req, res) => {
   try {
     const { jenis_harga } = req.query;
-    let whereClause = "WHERE DATE(t.tanggal)=CURDATE()";
-    const params = [];
-
-    if (jenis_harga && jenis_harga !== "semua") {
-      whereClause += " AND t.jenis_harga = ?";
-      params.push(jenis_harga);
-    }
 
     await ensureVarianLevelColumns();
     await ensureSelesaiColumn();
     await ensureTransaksiDateTimeColumns();
 
-    // Bagian ini mengambil riwayat transaksi hari ini dan menggabungkan data dari beberapa tabel.
-    // Data dari tabel transaksi, transaksi_detail, users, dan menu digabung agar tampilan riwayat lebih lengkap.
-    // Query ini bekerja seperti penghubung antar tabel agar tampilan riwayat bisa menampilkan nama kasir dan daftar item.
-    const [rows] = await db.query(`
-  SELECT 
-    id,
-    tanggal,
-    waktu,
-    kategori_pengeluaran,
-    keterangan,
-    jumlah,
-    ditambahkan_oleh
-  FROM keuangan
-  WHERE jenis = 'pengeluaran'
-    AND tanggal = CURDATE()
-    AND ditambahkan_oleh = 'owner'
-    AND transaksi_id IS NULL
-  ORDER BY tanggal DESC, waktu DESC
-`);
-    const result = rows.map(row => ({
-      ...row,
-      items: row.items
-        ? row.items.split(';;').map(it => {
-            const [nama, qty, harga, icon, varian, level] = it.split('|');
-            return {
-              nama: nama || '',
-              qty: Number(qty) || 0,
-              harga: Number(harga) || 0,
-              icon: icon || null,
-              varian: varian || null,
-              level: level || null,
-            };
-          })
-        : [],
-    }));
+    // ==========================================
+    // 1. AMBIL DATA TRANSAKSI
+    // ==========================================
+    let queryTransaksi = `
+      SELECT
+        t.id,
+        t.tanggal,
+        t.waktu,
+        t.metode,
+        t.total,
+        t.jenis_harga,
+        t.bukti_qris,
+        t.selesai
+      FROM transaksi t
+      WHERE DATE(t.tanggal) = CURDATE()
+    `;
 
-    console.log('DATA DARI DB:', rows.map(r => ({ id: r.id, items: r.items })));
+    const params = [];
+
+    if (jenis_harga && jenis_harga !== "semua") {
+      queryTransaksi += ` AND t.jenis_harga = ?`;
+      params.push(jenis_harga);
+    }
+
+    queryTransaksi += `
+      ORDER BY t.tanggal DESC, t.waktu DESC, t.id DESC
+    `;
+
+    const [transaksiRows] = await db.query(
+      queryTransaksi,
+      params
+    );
+
+    // ==========================================
+    // 2. AMBIL DETAIL ITEM DARI TRANSAKSI_DETAIL
+    // ==========================================
+    const result = [];
+
+    for (const transaksi of transaksiRows) {
+
+      const [detailRows] = await db.query(
+        `
+        SELECT
+          td.menu_id,
+          td.nama_menu,
+          td.harga,
+          td.jumlah,
+          td.subtotal,
+          td.varian,
+          td.level,
+          m.icon
+        FROM transaksi_detail td
+        LEFT JOIN menu m ON m.id = td.menu_id
+        WHERE td.transaksi_id = ?
+        ORDER BY td.id ASC
+        `,
+        [transaksi.id]
+      );
+
+      const items = detailRows.map(item => ({
+        nama: item.nama_menu || '',
+        qty: Number(item.jumlah) || 0,
+        harga: Number(item.harga) || 0,
+        icon: item.icon || null,
+        varian: item.varian || null,
+        level: item.level || null
+      }));
+
+      result.push({
+        id: transaksi.id,
+        tanggal: transaksi.tanggal,
+        waktu: transaksi.waktu,
+        metode: transaksi.metode,
+        total: Number(transaksi.total) || 0,
+        jenis_harga: transaksi.jenis_harga,
+        bukti_qris: transaksi.bukti_qris || null,
+        selesai: Number(transaksi.selesai) || 0,
+        items
+      });
+    }
+
+    // ==========================================
+    // 3. DEBUG
+    // ==========================================
+    console.log(
+      'DATA TRANSAKSI:',
+      result.map(r => ({
+        id: r.id,
+        metode: r.metode,
+        total: r.total,
+        jenis_harga: r.jenis_harga,
+        items: r.items
+      }))
+    );
 
     return res.json(result);
+
   } catch (err) {
     console.error("ERROR GET TRANSAKSI:", err);
-    return res.status(500).json({ message: "Gagal ambil transaksi" });
+    return res.status(500).json({
+      message: "Gagal ambil transaksi",
+      error: err.message
+    });
   }
 };
 
