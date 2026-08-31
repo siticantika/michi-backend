@@ -40,17 +40,12 @@ exports.create = async (req, res) => {
 
   const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
 
-  // Prefer client-provided tanggal when available so stored date matches user's input day
+  // Use server date (so entry appears in today's list according to server), but allow client time when valid
   const pad = (n) => n.toString().padStart(2, '0');
   const now = new Date();
-  let tanggal;
-  if (clientTanggal && typeof clientTanggal === 'string' && clientTanggal.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    tanggal = clientTanggal;
-  } else {
-    tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  }
+  const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   let waktu;
-  if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+  if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
     const parts = clientWaktu.split(':');
     const hh = pad(Number(parts[0] || 0));
     const mm = pad(Number(parts[1] || 0));
@@ -68,7 +63,6 @@ exports.create = async (req, res) => {
        VALUES (?, ?, 'pengeluaran', 'kasir', ?, ?, 'kasir', ?)`,
       [tanggal, waktu, keterangan, jumlah, normalizedKategori]
     );
-    console.log('Inserted pengeluaran with waktu:', waktu, 'tanggal:', tanggal);
 
     // log activity if token available
     try {
