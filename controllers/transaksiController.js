@@ -204,56 +204,21 @@ exports.getTransaksiHariIni = async (req, res) => {
     // Data dari tabel transaksi, transaksi_detail, users, dan menu digabung agar tampilan riwayat lebih lengkap.
     // Query ini bekerja seperti penghubung antar tabel agar tampilan riwayat bisa menampilkan nama kasir dan daftar item.
     const [rows] = await db.query(`
-    SELECT
-    t.id,
-    COALESCE(t.selesai,0) AS selesai,
-    t.tanggal,
-    t.waktu,
-    t.metode,
-    t.total,
-    t.jenis_harga,
-      t.bukti_qris,
-    u.username AS kasir,
-
-    GROUP_CONCAT(
-      CONCAT(
-        td.nama_menu,'|',
-        td.jumlah,'|',
-        td.harga,'|',
-        COALESCE(m.icon,''),'|',
-        COALESCE(td.varian,''),'|',
-        COALESCE(td.level,'')
-      )
-      SEPARATOR ';;'
-    ) AS items,
-
-    SUM(td.jumlah) AS total_jumlah
-
-FROM transaksi t
-LEFT JOIN users u
-ON t.kasir_id=u.id
-
-LEFT JOIN transaksi_detail td
-ON t.id=td.transaksi_id
-
-LEFT JOIN menu m
-ON td.menu_id=m.id
-
-${whereClause}
-
-GROUP BY
-t.id,
-t.selesai,
-t.tanggal,
-t.waktu,
-t.metode,
-t.total,
-t.jenis_harga,
-t.bukti_qris,
-u.username
-
-ORDER BY t.tanggal DESC, t.id DESC
-`, params);
+  SELECT 
+    id,
+    tanggal,
+    waktu,
+    kategori_pengeluaran,
+    keterangan,
+    jumlah,
+    ditambahkan_oleh
+  FROM keuangan
+  WHERE jenis = 'pengeluaran'
+    AND tanggal = CURDATE()
+    AND ditambahkan_oleh = 'owner'
+    AND transaksi_id IS NULL
+  ORDER BY tanggal DESC, waktu DESC
+`);
     const result = rows.map(row => ({
       ...row,
       items: row.items
