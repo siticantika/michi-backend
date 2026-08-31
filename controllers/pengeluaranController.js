@@ -40,10 +40,15 @@ exports.create = async (req, res) => {
 
   const normalizedKategori = kategori_pengeluaran === '' ? null : kategori_pengeluaran || null;
 
-  // Use server date and server time to ensure consistent stored time across clients/servers
+  // Prefer client-provided tanggal when available so stored date matches user's input day
   const pad = (n) => n.toString().padStart(2, '0');
   const now = new Date();
-  const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  let tanggal;
+  if (clientTanggal && typeof clientTanggal === 'string' && clientTanggal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    tanggal = clientTanggal;
+  } else {
+    tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
   let waktu;
   if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
     const parts = clientWaktu.split(':');
