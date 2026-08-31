@@ -139,17 +139,32 @@ exports.getPengeluaranHariIni = async (req, res) => {
 // ==========================
 exports.tambahPengeluaran = async (req, res) => {
   try {
-    const { keterangan, jumlah, kategori_pengeluaran } = req.body;
+    const { keterangan, jumlah, kategori_pengeluaran, waktu: clientWaktu, tanggal: clientTanggal } = req.body;
 
     if (!keterangan || !jumlah) {
       return res.status(400).json({ message: "Data tidak lengkap" });
     }
 
-    // Use server local date/time to avoid DB timezone mismatch
-    const now = new Date();
+    // Prefer client-provided tanggal/waktu when valid so stored value matches user's clock
     const pad = (n) => n.toString().padStart(2, '0');
-    const tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const now = new Date();
+    let tanggal;
+    if (clientTanggal && typeof clientTanggal === 'string' && clientTanggal.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      tanggal = clientTanggal;
+    } else {
+      tanggal = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    }
+
+    let waktu;
+    if (clientWaktu && typeof clientWaktu === 'string' && clientWaktu.match(/^\d{1,2}:\d{2}(:\d{2})?$/)) {
+      const parts = clientWaktu.split(':');
+      const hh = pad(Number(parts[0] || 0));
+      const mm = pad(Number(parts[1] || 0));
+      const ss = pad(Number(parts[2] || 0));
+      waktu = `${hh}:${mm}:${ss}`;
+    } else {
+      waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    }
 
     // Bagian ini menyimpan pengeluaran owner ke tabel keuangan.
     // Nilai ditambahkan_oleh membantu sistem membedakan siapa yang menambahkan data.
